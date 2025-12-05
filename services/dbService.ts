@@ -1,6 +1,15 @@
 import { UploadedDocument } from '../types';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  writeBatch,
+  getDoc
+} from 'firebase/firestore';
 import { firebaseConfig, isFirebaseConfigured } from './firebaseConfig';
 
 // --- CLOUD DATABASE (Firebase) ---
@@ -10,7 +19,7 @@ if (isFirebaseConfigured()) {
   try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    console.log("Cloud Database Initialized");
+    console.log("Cloud Database Configuration Detected");
   } catch (e) {
     console.error("Firebase Init Error:", e);
   }
@@ -54,20 +63,27 @@ const getLocalDB = (): Promise<IDBDatabase> => {
 export const getUsingCloud = () => !!db;
 
 export const saveLogoToDB = async (logoUrl: string): Promise<void> => {
-  // 1. Try Cloud
-  if (db) {
+  // Check size limit (approx 1MB for Firestore)
+  if (logoUrl.length > 1000000) {
+      console.warn("Logo is too large for Cloud Sync (>1MB). Saving locally only.");
+      // Fallback to local only logic below, skipping cloud block
+  } else if (db) {
+    // 1. Try Cloud
     try {
       await setDoc(doc(db, "oriana_settings", "branding"), {
         logoUrl: logoUrl,
         updatedAt: new Date().toISOString()
       });
-      return;
-    } catch (e) {
-      console.error("Cloud Save Failed", e);
+      console.log("Logo saved to Cloud");
+    } catch (e: any) {
+      console.error("Cloud Save Failed (Logo):", e.message);
+      if (e.code === 'permission-denied') {
+        alert("Database Permission Denied. Check Firestore Rules in Firebase Console (Test Mode).");
+      }
     }
   }
 
-  // 2. Fallback Local
+  // 2. Always Save Local (for offline speed)
   const localDb = await getLocalDB();
   const tx = localDb.transaction(STORE_SETTINGS, 'readwrite');
   const store = tx.objectStore(STORE_SETTINGS);
@@ -78,12 +94,13 @@ export const saveLogoToDB = async (logoUrl: string): Promise<void> => {
 };
 
 export const getLogoFromDB = async (): Promise<string | null> => {
-  // 1. Try Cloud
+  // 1. Try Cloud first
   if (db) {
     try {
-      // @ts-ignore
-      const docSnap = await import("firebase/firestore").then(mod => mod.getDoc(mod.doc(db, "oriana_settings", "branding")));
+      const docRef = doc(db, "oriana_settings", "branding");
+      const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
+        console.log("Logo loaded from Cloud");
         return docSnap.data().logoUrl;
       }
     } catch (e) {
@@ -105,15 +122,16 @@ export const saveDocumentsToDB = async (docs: UploadedDocument[]): Promise<void>
   // 1. Try Cloud
   if (db) {
     try {
-      // Strategy: We replace the entire collection or sync individually.
-      // For this demo, we'll save each doc.
-      // Note: Firestore writes have limits, but for <50 docs it's fine.
-      const batch = (await import("firebase/firestore")).writeBatch(db);
+      const batch = writeBatch(db);
       
-      // First, we might want to delete old ones, but for now let's just overwrite by ID
       docs.forEach(d => {
+        // Firestore 1MB limit check per doc
+        if (d.content.length > 900000) {
+            console.warn(`Document ${d.name} is too large for Cloud Sync. Skipping cloud save.`);
+            return;
+        }
+
         const docRef = doc(db, "oriana_documents", d.id);
-        // Serialize Date objects to ISO strings for JSON storage
         const safeDoc = {
           ...d,
           uploadDate: d.uploadDate instanceof Date ? d.uploadDate.toISOString() : d.uploadDate
@@ -122,17 +140,21 @@ export const saveDocumentsToDB = async (docs: UploadedDocument[]): Promise<void>
       });
 
       await batch.commit();
-      return;
-    } catch (e) {
-      console.error("Cloud Save Failed (Docs)", e);
+      console.log("Documents synced to Cloud");
+    } catch (e: any) {
+      console.error("Cloud Save Failed (Docs):", e.message);
+      if (e.code === 'permission-denied') {
+        alert("Database Permission Denied. Check Firestore Rules.");
+      }
     }
   }
 
-  // 2. Fallback Local
+  // 2. Always Save Local
   const localDb = await getLocalDB();
   const tx = localDb.transaction(STORE_DOCS, 'readwrite');
   const store = tx.objectStore(STORE_DOCS);
   
+  // Clear local and replace to match state
   await new Promise<void>((resolve) => {
     store.clear().onsuccess = () => resolve();
   });
@@ -162,6 +184,11 @@ export const getDocumentsFromDB = async (): Promise<UploadedDocument[]> => {
           uploadDate: new Date(data.uploadDate)
         });
       });
+      console.log(`Loaded ${docs.length} documents from Cloud`);
+      // Update local cache if cloud was successful
+      if (docs.length > 0) {
+          saveLocalCache(docs); 
+      }
       return docs;
     } catch (e) {
       console.warn("Cloud Fetch Failed (Docs), falling back to local", e);
@@ -178,15 +205,24 @@ export const getDocumentsFromDB = async (): Promise<UploadedDocument[]> => {
   });
 };
 
-// Helper for deleting from Cloud
 export const deleteDocumentFromDB = async (id: string): Promise<void> => {
     if (db) {
         try {
             await deleteDoc(doc(db, "oriana_documents", id));
+            console.log("Document deleted from Cloud");
         } catch(e) { console.error(e) }
     }
-    // Also delete from local to keep sync
+    // Also delete from local
     const localDb = await getLocalDB();
     const tx = localDb.transaction(STORE_DOCS, 'readwrite');
     tx.objectStore(STORE_DOCS).delete(id);
 };
+
+// Helper to keep local in sync with cloud reads
+const saveLocalCache = async (docs: UploadedDocument[]) => {
+    const localDb = await getLocalDB();
+    const tx = localDb.transaction(STORE_DOCS, 'readwrite');
+    const store = tx.objectStore(STORE_DOCS);
+    store.clear();
+    docs.forEach(doc => store.put(doc));
+}
