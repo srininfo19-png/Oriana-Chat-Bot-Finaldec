@@ -61,18 +61,61 @@ export const readFileContent = (file: File): Promise<string> => {
   });
 };
 
+// --- CHUNKING LOGIC ---
+const CHUNK_SIZE = 1500; // Characters per chunk (approx 300-400 tokens)
+const OVERLAP = 200; // Context overlap to prevent cutting sentences in half
+
+const createChunks = (text: string): string[] => {
+  const chunks: string[] = [];
+  
+  // 1. Clean up text (remove excessive newlines)
+  const cleanText = text.replace(/\n\n+/g, '\n').replace(/\s+/g, ' ');
+
+  if (cleanText.length <= CHUNK_SIZE) {
+    return [cleanText];
+  }
+
+  // 2. Sliding Window Chunking
+  let start = 0;
+  while (start < cleanText.length) {
+    let end = start + CHUNK_SIZE;
+    
+    // Attempt to break at a period or space to avoid cutting words
+    if (end < cleanText.length) {
+      const lastPeriod = cleanText.lastIndexOf('.', end);
+      const lastSpace = cleanText.lastIndexOf(' ', end);
+      
+      if (lastPeriod > start + CHUNK_SIZE * 0.5) {
+        end = lastPeriod + 1;
+      } else if (lastSpace > start + CHUNK_SIZE * 0.5) {
+        end = lastSpace;
+      }
+    }
+
+    const chunk = cleanText.slice(start, end).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
+
+    start = end - OVERLAP; // Move window forward, but back up a bit for overlap
+  }
+
+  return chunks;
+};
+
 export const processDocument = async (file: File): Promise<UploadedDocument> => {
   try {
     const textContent = await readFileContent(file);
     
-    // Simulate vector processing delay for UI feedback
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Perform Chunking
+    const chunks = createChunks(textContent);
 
     return {
       id: Math.random().toString(36).substr(2, 9),
       name: file.name,
       type: file.type,
-      content: textContent, // This is now the "Memory" for the RAG bot
+      content: textContent, // Keep full text for reference
+      chunks: chunks, // Optimized chunks for RAG
       uploadDate: new Date(),
     };
   } catch (error) {

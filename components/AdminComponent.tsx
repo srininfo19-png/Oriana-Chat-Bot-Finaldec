@@ -24,7 +24,6 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const isCloudConnected = getUsingCloud();
 
-  // Helper to compress image to ensure it fits in Firestore (limit 1MB)
   const resizeAndCompressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -34,7 +33,7 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 300; // Sufficient for a chat logo
+          const MAX_WIDTH = 300;
           const MAX_HEIGHT = 300;
           let width = img.width;
           let height = img.height;
@@ -55,8 +54,6 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          
-          // Export as PNG (or JPEG for more compression)
           resolve(canvas.toDataURL('image/png', 0.9));
         };
         img.onerror = (err) => reject(err);
@@ -92,7 +89,6 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
       const file = e.target.files[0];
       
       try {
-        // Compress before sending up
         const compressedBase64 = await resizeAndCompressImage(file);
         onLogoUpdate(compressedBase64);
       } catch (err) {
@@ -110,6 +106,9 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
     onDocumentsUpdate(updated);
     deleteDocumentFromDB(id);
   };
+
+  // Calculate total chunks across all docs
+  const totalChunks = currentDocuments.reduce((acc, doc) => acc + (doc.chunks ? doc.chunks.length : 1), 0);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -153,12 +152,7 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
                     disabled={isProcessingLogo}
                     className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50 hover:border-teal-500 hover:text-teal-700 transition flex items-center gap-2"
                   >
-                    {isProcessingLogo ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        Compressing...
-                      </>
-                    ) : 'Change Logo'}
+                    {isProcessingLogo ? 'Compressing...' : 'Change Logo'}
                   </button>
                   <input 
                     type="file" 
@@ -193,8 +187,8 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
                 {isUploading ? (
                   <div className="flex flex-col items-center">
                     <div className="w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mb-3"></div>
-                    <span className="text-sm font-semibold text-teal-800">Processing Vector Binaries...</span>
-                    <span className="text-xs text-teal-600 mt-1">Extracting embeddings & optimizing memory</span>
+                    <span className="text-sm font-semibold text-teal-800">Chunking & Vectorizing...</span>
+                    <span className="text-xs text-teal-600 mt-1">Splitting text into retrieval segments</span>
                   </div>
                 ) : (
                   <>
@@ -211,7 +205,13 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
 
           {/* Active Documents List */}
           <div>
-            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Vector Index ({currentDocuments.length})</h3>
+            <div className="flex justify-between items-end mb-3">
+               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Vector Index ({currentDocuments.length} Docs)</h3>
+               <span className="text-xs text-teal-600 bg-teal-50 px-2 py-1 rounded border border-teal-100">
+                 Total Retrieval Chunks: <b>{totalChunks}</b>
+               </span>
+            </div>
+            
             {currentDocuments.length === 0 ? (
               <div className="text-center py-8 text-gray-400 italic text-sm border rounded-lg border-dashed">
                 No vector data available. Upload files to train the bot.
@@ -228,14 +228,15 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
                         <span className="text-sm font-semibold text-gray-800 truncate max-w-[150px] sm:max-w-[200px]">{doc.name}</span>
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] text-gray-400">{(doc.content.length / 1024).toFixed(1)} KB</span>
-                            <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium border border-green-200">VECTORIZED</span>
+                            <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium border border-green-200">
+                                {doc.chunks ? doc.chunks.length : 1} CHUNKS
+                            </span>
                         </div>
                       </div>
                     </div>
                     <button 
                       onClick={() => removeDoc(doc.id)}
                       className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition"
-                      title="Remove from memory"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </button>

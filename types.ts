@@ -9,7 +9,8 @@ export interface UploadedDocument {
   id: string;
   name: string;
   type: string;
-  content: string; // Extracted text content
+  content: string; // Full text (kept for reference)
+  chunks: string[]; // RAG Chunks (Small text segments)
   uploadDate: Date;
 }
 

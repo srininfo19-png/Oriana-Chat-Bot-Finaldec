@@ -187,6 +187,7 @@ export const getDocumentsFromDB = async (): Promise<UploadedDocument[]> => {
           name: data.name,
           type: data.type,
           content: data.content,
+          chunks: data.chunks || [],
           uploadDate: new Date(data.uploadDate)
         });
       });
