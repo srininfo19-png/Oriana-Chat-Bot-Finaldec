@@ -5,8 +5,6 @@
 // 4. Paste your config below.
 
 export const firebaseConfig = {
-  // REPLACE THE EMPTY STRINGS WITH YOUR KEYS TO ENABLE SYNC
- const firebaseConfig = {
   apiKey: "AIzaSyBve0majosLh9BoDzexIzARid_xoz7aPak",
   authDomain: "orianachatbot.firebaseapp.com",
   projectId: "orianachatbot",
