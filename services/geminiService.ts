@@ -1,17 +1,28 @@
 import { GoogleGenAI } from "@google/genai";
 import { UploadedDocument } from "../types";
 
-// NOTE: In production, never expose API keys on the client. 
-// This should be proxied through a backend.
-// Safely access env variable to prevent 'process is not defined' crash in browser
+// Helper to safely get the API key from various environment configurations
 const getApiKey = () => {
+  // 1. Check standard process.env (Build tools / Node)
   try {
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    if (typeof process !== 'undefined' && process.env?.API_KEY) {
       return process.env.API_KEY;
     }
   } catch (e) {
-    // Ignore error if process is not defined
+    // Ignore access errors
   }
+  
+  // 2. Check window.process (Browser Shim for Vercel/Static)
+  try {
+    // @ts-ignore
+    if (typeof window !== 'undefined' && window.process?.env?.API_KEY) {
+      // @ts-ignore
+      return window.process.env.API_KEY;
+    }
+  } catch (e) {
+    // Ignore access errors
+  }
+
   return '';
 };
 
@@ -37,7 +48,7 @@ export const generateRAGResponse = async (
 ): Promise<string> => {
   
   if (!API_KEY) {
-    return "Error: API Key is missing. Please configure the environment variables in Vercel.";
+    return "Error: API Key is missing. Please ensure the application is deployed correctly with the API Key configured.";
   }
 
   // 1. Context Aggregation (Simulating Vector Retrieval for accuracy in this demo)
