@@ -3,8 +3,19 @@ import { UploadedDocument } from "../types";
 
 // NOTE: In production, never expose API keys on the client. 
 // This should be proxied through a backend.
-// Accessing the key provided in the prompt logic via env variable.
-const API_KEY = process.env.API_KEY || ''; 
+// Safely access env variable to prevent 'process is not defined' crash in browser
+const getApiKey = () => {
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    // Ignore error if process is not defined
+  }
+  return '';
+};
+
+const API_KEY = getApiKey();
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -26,7 +37,7 @@ export const generateRAGResponse = async (
 ): Promise<string> => {
   
   if (!API_KEY) {
-    return "Error: API Key is missing. Please configure the environment.";
+    return "Error: API Key is missing. Please configure the environment variables in Vercel.";
   }
 
   // 1. Context Aggregation (Simulating Vector Retrieval for accuracy in this demo)
