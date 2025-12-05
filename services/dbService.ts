@@ -64,9 +64,12 @@ export const getUsingCloud = () => !!db;
 
 export const saveLogoToDB = async (logoUrl: string): Promise<void> => {
   // Check size limit (approx 1MB for Firestore)
-  if (logoUrl.length > 1000000) {
-      console.warn("Logo is too large for Cloud Sync (>1MB). Saving locally only.");
-      // Fallback to local only logic below, skipping cloud block
+  // 1MB = ~1,000,000 characters of base64
+  const SIZE_LIMIT = 950000; 
+
+  if (logoUrl.length > SIZE_LIMIT) {
+      console.warn(`Logo is too large for Cloud Sync (${logoUrl.length} chars). Limit is ${SIZE_LIMIT}. Saving locally only.`);
+      // Proceed to local save
   } else if (db) {
     // 1. Try Cloud
     try {
@@ -74,11 +77,11 @@ export const saveLogoToDB = async (logoUrl: string): Promise<void> => {
         logoUrl: logoUrl,
         updatedAt: new Date().toISOString()
       });
-      console.log("Logo saved to Cloud");
+      console.log("Logo saved to Cloud successfully.");
     } catch (e: any) {
       console.error("Cloud Save Failed (Logo):", e.message);
       if (e.code === 'permission-denied') {
-        alert("Database Permission Denied. Check Firestore Rules in Firebase Console (Test Mode).");
+        alert("Database Permission Denied. Check Firestore Rules in Firebase Console.");
       }
     }
   }
@@ -102,6 +105,8 @@ export const getLogoFromDB = async (): Promise<string | null> => {
       if (docSnap.exists()) {
         console.log("Logo loaded from Cloud");
         return docSnap.data().logoUrl;
+      } else {
+        console.log("No logo found in Cloud, checking local...");
       }
     } catch (e) {
       console.warn("Cloud Fetch Failed (Logo), falling back to local", e);
@@ -123,6 +128,7 @@ export const saveDocumentsToDB = async (docs: UploadedDocument[]): Promise<void>
   if (db) {
     try {
       const batch = writeBatch(db);
+      let batchCount = 0;
       
       docs.forEach(d => {
         // Firestore 1MB limit check per doc
@@ -137,15 +143,15 @@ export const saveDocumentsToDB = async (docs: UploadedDocument[]): Promise<void>
           uploadDate: d.uploadDate instanceof Date ? d.uploadDate.toISOString() : d.uploadDate
         };
         batch.set(docRef, safeDoc);
+        batchCount++;
       });
 
-      await batch.commit();
-      console.log("Documents synced to Cloud");
+      if (batchCount > 0) {
+        await batch.commit();
+        console.log("Documents synced to Cloud");
+      }
     } catch (e: any) {
       console.error("Cloud Save Failed (Docs):", e.message);
-      if (e.code === 'permission-denied') {
-        alert("Database Permission Denied. Check Firestore Rules.");
-      }
     }
   }
 
