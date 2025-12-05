@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { processDocument } from '../services/fileService';
 import { UploadedDocument } from '../types';
+import { getUsingCloud, deleteDocumentFromDB } from '../services/dbService';
 
 interface AdminComponentProps {
   onClose: () => void;
@@ -20,6 +21,7 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const isCloudConnected = getUsingCloud();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -32,7 +34,6 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
           const doc = await processDocument(file);
           newDocs.push(doc);
         }
-        // This update triggers the saveDocumentsToDB in App.tsx
         onDocumentsUpdate([...currentDocuments, ...newDocs]);
       } catch (err) {
         alert("Failed to upload some files. Please ensure they are text readable.");
@@ -50,7 +51,6 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
       
       reader.onloadend = () => {
         if (typeof reader.result === 'string') {
-          // This update triggers the saveLogoToDB in App.tsx
           onLogoUpdate(reader.result);
         }
       };
@@ -59,20 +59,35 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
         reader.readAsDataURL(file);
       }
       
-      // Reset input
       if (logoInputRef.current) logoInputRef.current.value = '';
     }
   };
 
   const removeDoc = (id: string) => {
-    onDocumentsUpdate(currentDocuments.filter(d => d.id !== id));
+    const updated = currentDocuments.filter(d => d.id !== id);
+    onDocumentsUpdate(updated);
+    // Explicitly call delete for backend cleanup
+    deleteDocumentFromDB(id);
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="bg-gradient-to-r from-teal-700 to-teal-900 p-6 flex justify-between items-center">
-          <h2 className="text-2xl text-white brand-font font-bold">Admin Settings</h2>
+          <div>
+            <h2 className="text-2xl text-white brand-font font-bold">Admin Settings</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></span>
+              <span className="text-xs text-teal-100 uppercase tracking-wider font-semibold">
+                {isCloudConnected ? 'Cloud Database Connected' : 'Local Storage Only'}
+              </span>
+            </div>
+            {!isCloudConnected && (
+              <p className="text-[10px] text-teal-200 mt-1">
+                To sync across devices, configure firebaseConfig.ts in code.
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="text-white hover:text-yellow-400 transition">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -117,7 +132,7 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
             <h3 className="text-lg font-semibold text-gray-800 mb-2">Knowledge Base Upload</h3>
             <p className="text-sm text-gray-600 mb-4">
               Upload PDF, PPT (text converted), or Text files to train the Oriana Bot.
-              These files will be converted to context memory instantly (Vector Binary Simulation).
+              These files will be converted to context memory instantly.
             </p>
             
             <div className="border-2 border-dashed border-teal-300 rounded-lg p-8 text-center bg-teal-50 hover:bg-teal-100 transition cursor-pointer"
@@ -128,7 +143,7 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
                 className="hidden" 
                 ref={fileInputRef} 
                 onChange={handleFileUpload} 
-                accept=".txt,.md,.json,.csv" // Restricting to text types for browser-only demo reliability
+                accept=".txt,.md,.json,.csv" 
               />
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-teal-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
