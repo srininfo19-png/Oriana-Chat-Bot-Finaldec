@@ -36,7 +36,7 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
         }
         onDocumentsUpdate([...currentDocuments, ...newDocs]);
       } catch (err) {
-        alert("Failed to upload some files. Please ensure they are text readable.");
+        alert("Failed to upload some files. Ensure they are PDF or Text files.");
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -122,7 +122,7 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
                     onChange={handleLogoUpload}
                     accept="image/png, image/jpeg, image/svg+xml"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Recommended: Square PNG/SVG</p>
+                  <p className="text-xs text-gray-500 mt-1">Recommended: Square PNG/SVG (Max 1MB)</p>
                 </div>
              </div>
           </div>
@@ -131,27 +131,27 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
           <div>
             <h3 className="text-lg font-semibold text-gray-800 mb-2">Knowledge Base Upload</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Upload PDF, PPT (text converted), or Text files to train the Oriana Bot.
+              Upload PDF, CSV, or Text files to train the Oriana Bot.
               These files will be converted to context memory instantly.
             </p>
             
-            <div className="border-2 border-dashed border-teal-300 rounded-lg p-8 text-center bg-teal-50 hover:bg-teal-100 transition cursor-pointer"
-                 onClick={() => fileInputRef.current?.click()}>
+            <div className={`border-2 border-dashed rounded-lg p-8 text-center transition cursor-pointer ${isUploading ? 'bg-gray-100 border-gray-300 cursor-wait' : 'border-teal-300 bg-teal-50 hover:bg-teal-100'}`}
+                 onClick={() => !isUploading && fileInputRef.current?.click()}>
               <input 
                 type="file" 
                 multiple 
                 className="hidden" 
                 ref={fileInputRef} 
                 onChange={handleFileUpload} 
-                accept=".txt,.md,.json,.csv" 
+                accept=".txt,.md,.json,.csv,.pdf" 
               />
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-teal-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <p className="text-teal-800 font-medium">
-                {isUploading ? "Processing Vector Embeddings..." : "Click to Upload Documents"}
+                {isUploading ? "Processing Vector Binaries..." : "Click to Upload Documents"}
               </p>
-              <p className="text-xs text-gray-500 mt-1">Supported: Text-based files (txt, md, json) for demo</p>
+              <p className="text-xs text-gray-500 mt-1">Supported: PDF, TXT, JSON, MD</p>
             </div>
           </div>
 
@@ -164,15 +164,16 @@ const AdminComponent: React.FC<AdminComponentProps> = ({
               <ul className="space-y-2">
                 {currentDocuments.map(doc => (
                   <li key={doc.id} className="flex justify-between items-center bg-gray-50 p-3 rounded border border-gray-200">
-                    <div className="flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="flex items-center overflow-hidden">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">{doc.name}</span>
+                      <span className="text-sm font-medium text-gray-700 truncate">{doc.name}</span>
+                      <span className="ml-2 text-[10px] bg-teal-100 text-teal-800 px-1 rounded border border-teal-200">Vectorized</span>
                     </div>
                     <button 
                       onClick={() => removeDoc(doc.id)}
-                      className="text-red-500 hover:text-red-700 text-sm font-semibold px-2 py-1 rounded hover:bg-red-50"
+                      className="text-red-500 hover:text-red-700 text-sm font-semibold px-2 py-1 rounded hover:bg-red-50 ml-2"
                     >
                       Remove
                     </button>

@@ -25,6 +25,14 @@
         border-radius: 3px;
       }
     </style>
+    <!-- PDF.js for reading PDF content -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+      // Initialize PDF.js worker
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+    </script>
     <!-- Environment Config Shim for Vercel Static Deployment -->
     <script>
       window.process = window.process || {};
