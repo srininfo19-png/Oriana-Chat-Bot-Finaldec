@@ -92,7 +92,7 @@ export const generateRAGResponse = async (
 ): Promise<string> => {
   
   if (!API_KEY) {
-    return "Error: API Key is missing.";
+    return "Error: API Key is missing. Please check your configuration.";
   }
 
   // 1. Retrieve ONLY relevant chunks (The "Chunking" Facility)
@@ -114,11 +114,27 @@ export const generateRAGResponse = async (
 
   try {
     // 3. Construct Prompt with Conversation History
-    // We map our Message type to Gemini's content structure
-    const previousTurns = history.slice(-6).map(msg => ({
+    
+    // IMPORTANT: Gemini API generateContent `contents` must start with a 'user' turn if history is provided.
+    // We must filter out any leading 'model' messages (like the initial greeting).
+    let previousTurns = history.map(msg => ({
         role: msg.role,
         parts: [{ text: msg.text }]
     }));
+
+    // Remove leading 'model' messages
+    while (previousTurns.length > 0 && previousTurns[0].role === 'model') {
+        previousTurns.shift();
+    }
+
+    // Slice to keep context window manageable (last 10 turns max)
+    if (previousTurns.length > 10) {
+        previousTurns = previousTurns.slice(previousTurns.length - 10);
+        // Ensure we didn't slice in a way that makes it start with 'model' again
+        while (previousTurns.length > 0 && previousTurns[0].role === 'model') {
+            previousTurns.shift();
+        }
+    }
 
     let finalPrompt = "";
 
@@ -149,8 +165,15 @@ export const generateRAGResponse = async (
 
     return response.text || "I apologize, I couldn't generate a response.";
 
-  } catch (error) {
-    console.error("Gemini API Error:", error);
+  } catch (error: any) {
+    console.error("Gemini API Error Full Details:", error);
+    // Provide more specific error message if possible
+    if (error.message?.includes('400')) {
+        return "I apologize, but I am unable to process this request (400 Invalid Request).";
+    }
+    if (error.message?.includes('403') || error.message?.includes('API key')) {
+        return "Configuration Error: The API Key provided is invalid or expired.";
+    }
     return "I apologize, I am facing technical difficulties at the moment.";
   }
 };
