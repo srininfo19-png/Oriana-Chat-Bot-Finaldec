@@ -54,7 +54,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-700 via-teal-600 to-yellow-600 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#004d40] via-[#00695c] to-[#b48b39] flex flex-col items-center justify-center p-4">
       
       {/* Admin Toggle Button (Top Right) */}
       <div className="absolute top-4 right-4 z-20">
@@ -109,7 +109,7 @@ function App() {
                 </button>
                 <button 
                   type="submit" 
-                  className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium"
+                  className="flex-1 px-4 py-2 bg-[#004d40] text-white rounded-lg hover:bg-[#00695c] font-medium"
                 >
                   Login
                 </button>
