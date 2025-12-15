@@ -33,13 +33,6 @@
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       }
     </script>
-    <!-- Environment Config Shim for Vercel Static Deployment -->
-    <script>
-      window.process = window.process || {};
-      window.process.env = window.process.env || {};
-      // Injecting the provided key for the client-side demo
-      window.process.env.API_KEY = "AIzaSyBBWqHW2-KSdl6djUk_-Bm6rvBV8-OgC2o";
-    </script>
     <script type="importmap">
 {
   "imports": {

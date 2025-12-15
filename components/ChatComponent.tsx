@@ -28,7 +28,7 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
       {
         id: 'init',
         role: 'model',
-        text: 'Hello, I am the Oriana Assistant. How may I assist you with our collections today?',
+        text: '* Hello, I am the Oriana Assistant.\n* How may I assist you with our collections today?',
         timestamp: new Date()
       }
     ]);
@@ -49,6 +49,9 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
     setMessages(newHistory);
     setInput('');
     setIsLoading(true);
+
+    // Simulate slight network delay for natural feel
+    await new Promise(r => setTimeout(r, 600));
 
     const responseText = await generateRAGResponse(userMsg.text, documents, messages);
 
@@ -176,7 +179,7 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
           </button>
         </div>
         <div className="text-center mt-4">
-            <span className="text-[10px] text-gray-300 tracking-[0.25em] font-bold uppercase font-sans">Powered by Gemini</span>
+            <span className="text-[10px] text-gray-300 tracking-[0.25em] font-bold uppercase font-sans">Internal Logic Engine</span>
         </div>
       </div>
     </div>

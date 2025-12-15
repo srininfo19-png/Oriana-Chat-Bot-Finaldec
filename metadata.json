@@ -1,5 +1,5 @@
 {
-  "name": "Oriana RAG Bot",
+  "name": "Oriana RAG Bot - Final using gemini API",
   "description": "A RAG-based multilingual chatbot for Oriana brand with admin document management and Gemini integration.",
   "requestFramePermissions": []
 }
