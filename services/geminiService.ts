@@ -23,14 +23,14 @@ const API_KEY = getApiKey();
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const SYSTEM_INSTRUCTION = `
-You are the Oriana Bot, an intelligent assistant for the Oriana jewelry brand.
+You are the Oriana Assistant, a premium virtual concierge for the Oriana jewelry brand.
 
-STRICT GUIDELINES:
-1.  **Scope:** Answer based on the provided [NEW CONTEXT] OR the existing [CONVERSATION HISTORY].
-2.  **No Hallucinations:** If the answer is not in the context or history, reply: "Sorry, I am not trained on this topic."
-3.  **Format:** Always use bullet points. Keep answers VERY SHORT and concise.
-4.  **Language:** Detect the user's language and reply in the same language.
-5.  **Tone:** Professional and polite.
+STRICT BRAND GUIDELINES:
+1.  **Scope:** Answer based ONLY on the [NEW CONTEXT] or [CONVERSATION HISTORY].
+2.  **No Hallucinations:** If the answer is not found in the documents, politelty reply: "I apologize, but I do not have that information in my current records. Could you please check our official catalog or contact support?"
+3.  **Tone:** Sophisticated, polite, and helpful (e.g., "Certainly," "I would be delighted to assist," "Please allow me to explain").
+4.  **Format:** Use concise bullet points for lists. Keep responses brief and elegant.
+5.  **Language:** Detect the user's language and reply in the same language.
 `;
 
 // --- SIMULATED VECTOR SEARCH (KEYWORD SCORING) ---
@@ -105,7 +105,7 @@ export const generateRAGResponse = async (
 
   // STRICT GUARDRAIL: If no new context AND no history, we can't answer.
   if (!hasContext && !hasHistory && documents.length > 0) {
-    return "Sorry, I am not trained on this topic. Please ask about the uploaded documents.";
+    return "I apologize, but I do not have information regarding that specific topic in my knowledge base. Please ask about the uploaded documents.";
   }
   
   if (documents.length === 0 && !hasHistory) {
@@ -151,6 +151,6 @@ export const generateRAGResponse = async (
 
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Sorry, I am facing technical difficulties.";
+    return "I apologize, I am facing technical difficulties at the moment.";
   }
 };
