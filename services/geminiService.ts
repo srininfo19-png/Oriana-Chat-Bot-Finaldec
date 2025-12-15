@@ -1,41 +1,97 @@
+import { GoogleGenAI } from "@google/genai";
 import { UploadedDocument, Message } from "../types";
 
-// --- CUSTOM LOCAL CHAT ALGORITHM (No API Required) ---
+// --- CONFIGURATION ---
+// limit for Full Context mode (approx 30k words). 
+// If docs are smaller than this, we send EVERYTHING to Gemini for 100% accuracy.
+const FULL_CONTEXT_THRESHOLD = 150000; 
 
-// Helper: Tokenize text into words, removing punctuation
+// --- TF-IDF VECTOR SEARCH ENGINE (Fallback/Optimization) ---
+// Kept for very large documents to avoid token limits, though Gemini Flash has a huge window.
+
+type Vector = Record<string, number>;
+const STOP_WORDS = new Set(["a", "the", "and", "of", "in", "to", "is", "for", "with"]);
+
 const tokenize = (text: string): string[] => {
   return text.toLowerCase()
-    .replace(/[^\w\s]|_/g, "")
-    .replace(/\s+/g, " ")
-    .split(" ")
-    .filter(w => w.length > 2); // Filter out tiny words
+    .replace(/[^a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 };
 
-// Helper: Split text into sentences for granular extraction
-const splitIntoSentences = (text: string): string[] => {
-  // Split by periods, question marks, or exclamation marks
-  return text.match(/[^.!?]+[.!?]+/g) || [text];
+const splitIntoSearchableChunks = (text: string): string[] => {
+  return text.match(/[^.!?\n]+[.!?\n]+/g) || [text];
 };
 
-// Helper: Calculate relevance score of a sentence against a query
-const calculateScore = (sentence: string, queryTokens: string[]): number => {
-  const sentenceTokens = tokenize(sentence);
-  let score = 0;
-  
-  // 1. Direct Keyword Matches
-  queryTokens.forEach(qToken => {
-    if (sentenceTokens.includes(qToken)) {
-      score += 10; 
-    }
+const computeTF = (tokens: string[]): Vector => {
+  const tf: Vector = {};
+  tokens.forEach(t => tf[t] = (tf[t] || 0) + 1);
+  return tf;
+};
+
+const computeIDF = (corpus: string[][]): Vector => {
+  const idf: Vector = {};
+  const N = corpus.length;
+  const allTokens = new Set<string>();
+  corpus.forEach(d => d.forEach(t => allTokens.add(t)));
+  allTokens.forEach(t => {
+    const docsWithTerm = corpus.filter(doc => doc.includes(t)).length;
+    idf[t] = Math.log10(N / (1 + docsWithTerm));
   });
+  return idf;
+};
 
-  // 2. Phrase density (simplified)
-  if (score > 0) {
-    // penalize very long sentences slightly to prefer concise answers
-    score -= (sentenceTokens.length * 0.05);
+const cosineSimilarity = (vecA: Vector, vecB: Vector): number => {
+  const keys = new Set([...Object.keys(vecA), ...Object.keys(vecB)]);
+  let dot = 0, magA = 0, magB = 0;
+  keys.forEach(k => {
+    dot += (vecA[k] || 0) * (vecB[k] || 0);
+  });
+  Object.values(vecA).forEach(v => magA += v*v);
+  Object.values(vecB).forEach(v => magB += v*v);
+  return (magA && magB) ? dot / (Math.sqrt(magA) * Math.sqrt(magB)) : 0;
+};
+
+const getRelevantContext = (query: string, docs: UploadedDocument[]): string => {
+  // 1. Check total size
+  const totalLength = docs.reduce((acc, d) => acc + d.content.length, 0);
+
+  // STRATEGY A: FULL CONTEXT (100% Accuracy)
+  // If documents are small enough, send EVERYTHING. This prevents missing info.
+  if (totalLength < FULL_CONTEXT_THRESHOLD) {
+    return docs.map(d => `--- SOURCE: ${d.name} ---\n${d.content}`).join("\n\n");
   }
 
-  return score;
+  // STRATEGY B: VECTOR SEARCH (Efficiency)
+  // If documents are huge, find top chunks.
+  const allChunks: string[] = [];
+  docs.forEach(doc => {
+    // Split efficiently
+    const chunks = splitIntoSearchableChunks(doc.content);
+    allChunks.push(...chunks);
+  });
+
+  const corpusTokens = allChunks.map(tokenize);
+  const idf = computeIDF(corpusTokens);
+  const queryVec = computeTF(tokenize(query));
+  
+  // Weight query vector by IDF
+  Object.keys(queryVec).forEach(k => queryVec[k] = queryVec[k] * (idf[k] || 0));
+
+  const results = allChunks.map((chunk, i) => {
+    const docTokens = corpusTokens[i];
+    const docTF = computeTF(docTokens);
+    const docVec: Vector = {};
+    Object.keys(docTF).forEach(k => docVec[k] = docTF[k] * (idf[k] || 0));
+    return { text: chunk, score: cosineSimilarity(queryVec, docVec) };
+  });
+
+  // Return top 10 chunks for broad context
+  return results
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map(r => r.text)
+    .join("\n\n");
 };
 
 export const generateRAGResponse = async (
@@ -44,65 +100,50 @@ export const generateRAGResponse = async (
   history: Message[] = [] 
 ): Promise<string> => {
   
-  // 1. HANDLE GREETINGS & BASICS (Hardcoded Personality)
-  const lowerQ = query.toLowerCase();
-  if (lowerQ.match(/^(hi|hello|hey|greetings|vanakkam|namaste|namaskara)/)) {
-    return `* Hello! I am the Oriana Assistant.
-* I can help you with details about our jewelry, gold purity, and collections.
-* Please ask your question based on the documents you have uploaded.`;
-  }
-
   if (documents.length === 0) {
-    return "* Please upload knowledge base documents in the Admin panel to start.";
+    return "Please upload the Oriana Knowledge Base documents in the Admin Panel to begin.";
   }
 
-  // 2. PREPARE QUERY
-  const queryTokens = tokenize(query);
-  if (queryTokens.length === 0) {
-    return "* Please ask a specific question about the products.";
-  }
+  // 1. Retrieve Context
+  const context = getRelevantContext(query, documents);
 
-  // 3. SEARCH & EXTRACT (The "Algorithm")
-  let allCandidateSentences: { text: string; score: number }[] = [];
-
-  documents.forEach(doc => {
-    // We search the full content, split into sentences
-    const sentences = splitIntoSentences(doc.content);
+  // 2. Generate Answer with Gemini
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    sentences.forEach(sentence => {
-      const score = calculateScore(sentence, queryTokens);
-      if (score > 0) {
-        // Clean up sentence (remove newlines, extra spaces)
-        const cleanText = sentence.replace(/\s+/g, ' ').trim();
-        allCandidateSentences.push({ text: cleanText, score });
-      }
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: `
+            You are the Oriana Intelligent Assistant. 
+            Oriana is a premium jewellery brand ("Daughter of Light") focusing on brides and their best friends.
+            
+            YOUR TASK:
+            Answer the user's question using ONLY the provided CONTEXT below.
+            
+            GUIDELINES:
+            1. **Accuracy**: Use strictly the facts in the context. Do not invent details.
+            2. **Relevance**: If the user asks for a specific format (e.g., "short points") or language (e.g., "in Tamil"), you MUST comply.
+            3. **Tone**: Elegant, helpful, and polite.
+            4. **Missing Info**: If the answer is not in the context, say: "I cannot find that specific detail in the current documents."
+            
+            CONTEXT DOCUMENTS:
+            ${context}
+            
+            USER QUESTION: 
+            ${query}
+          `}]
+        }
+      ]
     });
-  });
 
-  // 4. SORT & SELECT TOP RESULTS
-  // Sort by score descending
-  allCandidateSentences.sort((a, b) => b.score - a.score);
+    return response.text;
 
-  // Take top 5 unique sentences
-  const uniqueSentences = new Set<string>();
-  const finalSentences: string[] = [];
-  
-  for (const item of allCandidateSentences) {
-    if (finalSentences.length >= 5) break;
-    if (!uniqueSentences.has(item.text)) {
-      uniqueSentences.add(item.text);
-      finalSentences.push(item.text);
-    }
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    // Graceful fallback if API fails (e.g. network issue)
+    return "I am currently unable to process this request via the AI engine. Please check your internet connection or API Key configuration.";
   }
-
-  // 5. FORMAT OUTPUT
-  if (finalSentences.length === 0) {
-    // Fallback if no keywords matched
-    return "* Sorry, I could not find specific information about that in my documents.\n* Please try using different keywords related to the uploaded files.";
-  }
-
-  // Combine into bullet points
-  const response = finalSentences.map(s => `* ${s}`).join("\n\n");
-  
-  return response;
 };

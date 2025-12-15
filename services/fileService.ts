@@ -14,8 +14,13 @@ const readPdfContent = async (file: File): Promise<string> => {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
+      
+      // Join items with space. 
+      // Note: We avoid adding [Page X] headers into the raw stream to prevent breaking sentences that cross pages.
       const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += `[Page ${i}]\n${pageText}\n\n`;
+      
+      // Join pages with a space to treat the whole doc as a continuous stream
+      fullText += `${pageText} `; 
     }
 
     return fullText;

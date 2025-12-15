@@ -28,7 +28,7 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
       {
         id: 'init',
         role: 'model',
-        text: '* Hello, I am the Oriana Assistant.\n* How may I assist you with our collections today?',
+        text: 'Hello! I am your Oriana Assistant.\nHow may I help you explore our collections today?',
         timestamp: new Date()
       }
     ]);
@@ -44,15 +44,11 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
       timestamp: new Date()
     };
 
-    // Update UI immediately with user message
-    const newHistory = [...messages, userMsg];
-    setMessages(newHistory);
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
 
-    // Simulate slight network delay for natural feel
-    await new Promise(r => setTimeout(r, 600));
-
+    // Call Gemini RAG Service
     const responseText = await generateRAGResponse(userMsg.text, documents, messages);
 
     const botMsg: Message = {
@@ -73,7 +69,7 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
     }
   };
 
-  // Base64 SVG: Deep Teal Circle with Gold "O" (Serif) - Updated to be slightly more elegant
+  // Base64 SVG: Deep Teal Circle with Gold "O"
   const DEFAULT_LOGO = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwNGQ0MCIgLz4KICA8cGF0aCBkPSJNIDUwIDEwIEEgNDAgNDAgMCAwIDEgOTAgNTAgQSA0MCA0MCAwIDAgMSA1MCA5MCBBIDQwIDQwIDAgMCAxIDEwIDUwIEEgNDAgNDAgMCAwIDEgNTAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0M1QTA1OSIHN0cm9rZS13aWR0aD0iMiIgb3BhY2l0eT0iMC41IiAvPgogIDx0ZXh0IHg9IjUwIiB5PSI3MiIgZm9udC1mYW1pbHk9IlBsYXlmYWlyIERpc3BsYXksIHNlcmlmIiBmb250LXNpemU9IjYwIiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iI0M1QTA1OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TzwvdGV4dD4KPC9zdmc+";
   const activeLogo = logoUrl || DEFAULT_LOGO;
 
@@ -87,7 +83,6 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
 
       {/* Header */}
       <div className="bg-[#004d40] p-6 pt-10 flex items-center shadow-lg z-10 relative overflow-hidden">
-         {/* Decorative Shine */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
 
         <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mr-4 shadow-md border-2 border-[#C5A059] p-0.5 flex-shrink-0 z-10">
@@ -99,10 +94,10 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
            />
         </div>
         <div className="z-10">
-          <h1 className="text-white font-bold text-2xl font-serif tracking-wide">Oriana Assistant</h1>
+          <h1 className="text-white font-bold text-2xl font-serif tracking-wide">Oriana</h1>
           <div className="flex items-center gap-1.5 mt-1">
             <span className="w-2 h-2 bg-[#C5A059] rounded-full animate-pulse shadow-[0_0_5px_#C5A059]"></span>
-            <p className="text-teal-100/90 text-[11px] uppercase tracking-widest font-semibold">Virtual Support</p>
+            <p className="text-teal-100/90 text-[11px] uppercase tracking-widest font-semibold">Concierge</p>
           </div>
         </div>
       </div>
@@ -126,7 +121,7 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
                   : 'bg-white text-gray-800 border border-gray-100 rounded-2xl rounded-tl-sm shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
               }`}
             >
-              <div className="whitespace-pre-line font-sans tracking-wide">
+              <div className="whitespace-pre-wrap font-sans tracking-wide">
                 {msg.text}
               </div>
               <span className={`text-[9px] block text-right mt-2 font-medium tracking-wider ${msg.role === 'user' ? 'text-teal-200' : 'text-gray-300'}`}>
@@ -156,9 +151,15 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
       {/* Input Area */}
       <div className="p-5 bg-white border-t border-gray-50 pb-6 z-20 relative">
         <div className="relative flex items-center shadow-sm rounded-full">
+          
+          {/* Logo in Input Box (Requested Feature) */}
+          <div className="absolute left-1 top-1 bottom-1 w-10 bg-gray-50 rounded-full flex items-center justify-center border border-transparent z-10">
+             <img src={activeLogo} className="w-6 h-6 object-cover opacity-80" alt="input-logo" />
+          </div>
+
           <input
             type="text"
-            className="w-full bg-gray-50 border-2 border-gray-100 rounded-full pl-6 pr-14 py-4 focus:border-[#004d40] focus:ring-0 outline-none text-gray-700 placeholder-gray-400 font-sans transition-colors text-sm"
+            className="w-full bg-gray-50 border-2 border-gray-100 rounded-full pl-12 pr-14 py-4 focus:border-[#004d40] focus:ring-0 outline-none text-gray-700 placeholder-gray-400 font-sans transition-colors text-sm"
             placeholder="Ask about Oriana..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -179,7 +180,7 @@ const ChatComponent: React.FC<ChatComponentProps> = ({ documents, logoUrl }) => 
           </button>
         </div>
         <div className="text-center mt-4">
-            <span className="text-[10px] text-gray-300 tracking-[0.25em] font-bold uppercase font-sans">Internal Logic Engine</span>
+            <span className="text-[9px] text-gray-300 tracking-[0.2em] font-bold uppercase font-sans">Powered by Google Gemini</span>
         </div>
       </div>
     </div>
