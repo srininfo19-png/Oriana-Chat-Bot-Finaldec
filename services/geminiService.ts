@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { UploadedDocument } from "../types";
+import { UploadedDocument, Message } from "../types";
 
 const getApiKey = () => {
   try {
@@ -24,20 +24,16 @@ const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const SYSTEM_INSTRUCTION = `
 You are the Oriana Bot, an intelligent assistant for the Oriana jewelry brand.
-Your primary role is to answer customer queries based ONLY on the provided Context.
 
 STRICT GUIDELINES:
-1.  **Scope:** Answer ONLY questions related to the provided context snippets.
-2.  **Out of Scope:** If the answer is not in the context, reply: "Sorry, I am not trained on this topic."
+1.  **Scope:** Answer based on the provided [NEW CONTEXT] OR the existing [CONVERSATION HISTORY].
+2.  **No Hallucinations:** If the answer is not in the context or history, reply: "Sorry, I am not trained on this topic."
 3.  **Format:** Always use bullet points. Keep answers VERY SHORT and concise.
 4.  **Language:** Detect the user's language and reply in the same language.
 5.  **Tone:** Professional and polite.
 `;
 
 // --- SIMULATED VECTOR SEARCH (KEYWORD SCORING) ---
-// Since we don't have a Vector DB server, we use weighted keyword matching.
-// This finds the chunks most relevant to the user's question.
-
 interface ScoredChunk {
   text: string;
   score: number;
@@ -46,11 +42,13 @@ interface ScoredChunk {
 
 const findBestChunks = (query: string, documents: UploadedDocument[]): string => {
   // 1. Tokenize query (remove stop words, lowercase)
-  const stopWords = new Set(['the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'but', 'how', 'what']);
+  const stopWords = new Set(['the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'but', 'how', 'what', 'give', 'me', 'in', 'to']);
   const queryTerms = query.toLowerCase()
     .replace(/[^\w\s]/g, '')
     .split(/\s+/)
-    .filter(w => w.length > 2 && !stopWords.has(w));
+    .filter(w => w.length > 1 && !stopWords.has(w));
+
+  if (queryTerms.length === 0) return ""; // Query is too generic or short for keyword search
 
   const allChunks: ScoredChunk[] = [];
 
@@ -66,7 +64,7 @@ const findBestChunks = (query: string, documents: UploadedDocument[]): string =>
       queryTerms.forEach(term => {
         // Exact match points
         if (chunkLower.includes(term)) score += 1;
-        // Frequency boost (rudimentary TF)
+        // Frequency boost
         const count = chunkLower.split(term).length - 1;
         score += count * 0.5;
       });
@@ -78,10 +76,9 @@ const findBestChunks = (query: string, documents: UploadedDocument[]): string =>
   });
 
   // 3. Sort by score and take top K (Top 5-8 chunks)
-  // This drastically reduces token usage from 300 pages -> ~2 pages
   const topChunks = allChunks
     .sort((a, b) => b.score - a.score)
-    .slice(0, 8); // Max 8 chunks (~3000 tokens)
+    .slice(0, 8); 
 
   if (topChunks.length === 0) return "";
 
@@ -90,40 +87,63 @@ const findBestChunks = (query: string, documents: UploadedDocument[]): string =>
 
 export const generateRAGResponse = async (
   query: string, 
-  documents: UploadedDocument[]
+  documents: UploadedDocument[],
+  history: Message[] = [] 
 ): Promise<string> => {
   
   if (!API_KEY) {
     return "Error: API Key is missing.";
   }
 
-  if (documents.length === 0) {
-    return "I currently have no documents loaded. Please ask the Admin to upload the Knowledge Base.";
-  }
-
   // 1. Retrieve ONLY relevant chunks (The "Chunking" Facility)
   const relevantContext = findBestChunks(query, documents);
 
-  if (!relevantContext) {
-    // If no keywords match, the query is likely irrelevant to the docs
-    return "Sorry, I couldn't find any information about that in my documents.";
+  // 2. Check conditions
+  const hasContext = relevantContext.length > 0;
+  // Use last 10 messages for context window
+  const hasHistory = history.length > 0;
+
+  // STRICT GUARDRAIL: If no new context AND no history, we can't answer.
+  if (!hasContext && !hasHistory && documents.length > 0) {
+    return "Sorry, I am not trained on this topic. Please ask about the uploaded documents.";
+  }
+  
+  if (documents.length === 0 && !hasHistory) {
+      return "I currently have no documents loaded. Please ask the Admin to upload the Knowledge Base.";
   }
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
+    // 3. Construct Prompt with Conversation History
+    // We map our Message type to Gemini's content structure
+    const previousTurns = history.slice(-6).map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.text }]
+    }));
+
+    let finalPrompt = "";
+
+    if (hasContext) {
+        // Inject new knowledge
+        finalPrompt = `[NEW CONTEXT START]\n${relevantContext}\n[NEW CONTEXT END]\n\nUSER QUESTION: ${query}`;
+    } else {
+        // Follow-up mode
+        finalPrompt = `[NO NEW DOCUMENTS FOUND - ANSWER BASED ON CONVERSATION HISTORY]\nUSER QUESTION: ${query}`;
+    }
+
+    const contents = [
+        ...previousTurns,
         {
           role: 'user',
-          parts: [
-            { text: `CONTEXT START\n${relevantContext}\nCONTEXT END` },
-            { text: `USER QUESTION: ${query}` }
-          ]
+          parts: [{ text: finalPrompt }]
         }
-      ],
+    ];
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.3,
+        temperature: 0.3, 
       }
     });
 
