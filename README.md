@@ -24,16 +24,16 @@ A React-based RAG chatbot designed for Oriana, featuring a gradient theme, admin
 ### 2. Configure Gemini API Key
 **IMPORTANT:** You must configure the API Key environment variable for the bot to work.
 
-1.  Get your key: `AIzaSyANwlhTr8L5DX9HR3SG-H2OEQab2KTVLEo` (from your provided text).
+1.  Get your key: `AIzaSyBBWqHW2-KSdl6djUk_-Bm6rvBV8-OgC2o` (from your provided text).
 2.  **For Vercel Deployment:**
     - Go to your Vercel Project Settings.
     - Click **Environment Variables**.
     - Add Key: `API_KEY`
-    - Add Value: `AIzaSyANwlhTr8L5DX9HR3SG-H2OEQab2KTVLEo`
+    - Add Value: `AIzaSyBBWqHW2-KSdl6djUk_-Bm6rvBV8-OgC2o`
     - Click Save.
 3.  **For Local Development:**
     - Create a file named `.env` in the root folder.
-    - Add: `API_KEY=AIzaSyANwlhTr8L5DX9HR3SG-H2OEQab2KTVLEo`
+    - Add: `API_KEY=AIzaSyBBWqHW2-KSdl6djUk_-Bm6rvBV8-OgC2o`
 
 ### 3. Deploy to Vercel
 1.  Go to [Vercel](https://vercel.com/new).
@@ -57,7 +57,7 @@ A React-based RAG chatbot designed for Oriana, featuring a gradient theme, admin
     ```yaml
     runtime: nodejs18
     env_variables:
-      API_KEY: "AIzaSyANwlhTr8L5DX9HR3SG-H2OEQab2KTVLEo"
+      API_KEY: "AIzaSyBBWqHW2-KSdl6djUk_-Bm6rvBV8-OgC2o"
     handlers:
       - url: /.*
         static_files: build/index.html
